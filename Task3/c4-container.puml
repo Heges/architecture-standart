@@ -1,0 +1,82 @@
+@startuml c4-container
+!include <C4/C4_Container>
+
+LAYOUT_LEFT_RIGHT()
+
+title C4 Container. MVP открытия депозитов онлайн
+
+Person(new_client, "Новый клиент", "Оставляет заявку на сайте.")
+Person(client, "Действующий клиент", "Подает заявку в интернет-банке.")
+Person(call_center_manager, "Менеджер кол-центра", "Обрабатывает заявки с сайта.")
+Person(bo_deposit, "Менеджер бэк-офиса депозитов", "Подтверждает условия и открывает депозит в АБС.")
+Person(bo_credit, "Менеджер бэк-офиса кредитов", "Участвует в согласовании специальных ставок.")
+
+System_Ext(telecom, "Телеком-оператор", "Доставляет СМС клиентам.")
+
+System_Boundary(site_system, "Сайт банка") {
+    Container(site_app, "Сайт", "PHP, React.js", "Показывает депозитные продукты, принимает ФИО и телефон нового клиента.")
+}
+
+System_Boundary(ib_system, "Интернет-банк") {
+    Container(ib_ui, "Web UI интернет-банка", "ASP.NET MVC Views", "Экран выбора депозита, счета, суммы и ввода СМС-кода.")
+    Container(ib_monolith, "Монолит интернет-банка", "ASP.NET MVC 4.5, .NET Framework 4.5", "Существующее приложение интернет-банка.")
+    Container(ib_adapter, "Модуль интеграции с сервисом депозитных заявок", ".NET Framework 4.5", "Передает запросы по депозитам из интернет-банка в сервис депозитных заявок.")
+    ContainerDb(ib_db, "БД интернет-банка", "MS SQL", "Существующие данные интернет-банка. Не является источником ставок.")
+}
+
+System_Boundary(deposit_system, "Сервис депозитных заявок") {
+    Container(deposit_api, "API депозитных заявок", "Java Spring Boot или .NET", "Принимает заявки от сайта и интернет-банка, отдает ставки и статусы.")
+    ContainerDb(deposit_db, "БД заявок и статусов", "MS SQL", "Хранит заявки, статусы обработки и ошибки интеграций.")
+    Container(abs_adapter, "Интеграционный адаптер к АБС", "Java/.NET", "Передает заявки в АБС и получает статусы обработки.")
+    Container(sms_adapter, "СМС-адаптер", "Java/.NET", "Запрашивает СМС-коды и уведомления через СМС-шлюз.")
+    Container(rate_cache, "Кэш / витрина ставок", "MS SQL", "Дает сайту и интернет-банку быстрый доступ к актуальным ставкам.")
+}
+
+System_Boundary(cc_system, "Система кол-центра") {
+    Container(cc_app, "Приложение кол-центра", "React, Spring Boot", "Показывает менеджеру заявки с сайта и позволяет зафиксировать результат звонка.")
+    ContainerDb(cc_db, "БД кол-центра", "PostgreSQL", "Хранит обращения и результаты звонков.")
+}
+
+System_Boundary(abs_system, "АБС") {
+    Container(abs_desktop, "Delphi-клиент", "Delphi", "Рабочее место сотрудников бэк-офиса.")
+    Container(abs_plsql, "Модуль обработки депозитных заявок", "Oracle PL/SQL", "Обработка заявок, подтверждение условий и открытие депозита.")
+    Container(rates_module, "Модуль ставок и спецусловий", "Oracle PL/SQL", "Системный процесс ведения ставок вместо локальных Excel-файлов.")
+    ContainerDb(abs_db, "Oracle БД АБС", "Oracle", "Счета, договоры, заявки, банковские операции.")
+}
+
+System(sms_gateway, "СМС-шлюз", "Система банка", "Передает СМС телеком-оператору.")
+
+Rel(new_client, site_app, "Оставляет заявку", "HTTPS")
+Rel(site_app, deposit_api, "Создает заявку, получает ставки", "HTTPS/API")
+
+Rel(client, ib_ui, "Работает с разделом депозитов", "HTTPS")
+Rel(ib_ui, ib_monolith, "Передает действия клиента")
+Rel(ib_monolith, ib_db, "Читает и пишет текущие данные")
+Rel(ib_monolith, ib_adapter, "Передает сценарий депозита")
+Rel(ib_adapter, deposit_api, "Создает заявку, получает ставки и статусы", "HTTPS/API")
+
+Rel(deposit_api, deposit_db, "Сохраняет заявки, статусы, ошибки")
+Rel(deposit_api, rate_cache, "Читает актуальные ставки")
+Rel(deposit_api, abs_adapter, "Передает заявки, запрашивает статусы и ставки")
+Rel(abs_adapter, abs_plsql, "Передает заявку и получает статусы", "Согласованный интерфейс АБС")
+Rel(abs_plsql, abs_db, "Читает и пишет банковские данные")
+Rel(abs_adapter, rates_module, "Получает актуальные ставки и спецусловия", "Согласованный интерфейс АБС")
+Rel(rates_module, abs_db, "Хранит ставки и спецусловия")
+Rel(abs_adapter, rate_cache, "Обновляет витрину ставок")
+
+Rel(deposit_api, cc_app, "Передает заявку с сайта", "API")
+Rel(call_center_manager, cc_app, "Обрабатывает заявку")
+Rel(cc_app, cc_db, "Сохраняет обращение и результат звонка")
+
+Rel(deposit_api, sms_adapter, "Запрашивает СМС-код и уведомления")
+Rel(sms_adapter, sms_gateway, "Передает СМС", "API")
+Rel(sms_gateway, telecom, "Отправляет СМС")
+Rel(telecom, client, "Доставляет СМС")
+Rel(telecom, new_client, "Доставляет СМС")
+
+Rel(bo_deposit, abs_desktop, "Работает с заявкой")
+Rel(bo_credit, rates_module, "Передает данные для спецусловий")
+Rel(abs_desktop, abs_plsql, "Подтверждает условия и открывает депозит")
+
+SHOW_LEGEND()
+@enduml

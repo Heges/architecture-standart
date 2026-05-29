@@ -1,0 +1,46 @@
+@startuml c4-context
+!include <C4/C4_Context>
+
+LAYOUT_LEFT_RIGHT()
+
+title C4 Context. MVP открытия депозитов онлайн
+
+Person(new_client, "Новый клиент", "Потенциальный клиент банка. Оставляет заявку на сайте.")
+Person(client, "Действующий клиент", "Клиент банка. Подает заявку на депозит в интернет-банке.")
+Person(call_center_manager, "Менеджер кол-центра", "Звонит новому клиенту после заявки с сайта.")
+Person(front_office, "Сотрудник фронт-офиса", "Идентифицирует нового клиента в отделении.")
+Person(bo_deposit, "Менеджер бэк-офиса депозитов", "Обрабатывает заявку и подтверждает условия депозита.")
+Person(bo_credit, "Менеджер бэк-офиса кредитов", "Предоставляет данные для специальных ставок.")
+
+System_Boundary(bank, "Банк «Стандарт»") {
+    System(site, "Сайт", "PHP, React.js", "Показывает депозитные продукты и принимает заявки новых клиентов.")
+    System(internet_bank, "Интернет-банк", "ASP.NET MVC 4.5, MS SQL", "Показывает продукты и ставки действующим клиентам, принимает заявку на депозит.")
+    System(deposit_service, "Сервис депозитных заявок", "Новый контур MVP", "Принимает заявки, хранит статусы, связывает сайт и интернет-банк с АБС и кол-центром.")
+    System(call_center, "Система кол-центра", "React, Spring Boot, PostgreSQL", "Получает заявки с сайта для звонка клиенту.")
+    System(abs, "АБС", "Delphi-клиент, Oracle, PL/SQL", "Основная учетная система банка. В ней бэк-офис подтверждает условия и открывает депозит.")
+    System(sms_gateway, "СМС-шлюз", "Система банка", "Передает СМС-коды и уведомления телеком-оператору.")
+}
+
+System_Ext(telecom, "Телеком-оператор", "Доставляет СМС клиентам.")
+
+Rel(new_client, site, "Смотрит ставки и оставляет заявку", "HTTPS")
+Rel(site, deposit_service, "Передает заявку и получает ставки", "HTTPS/API")
+Rel(deposit_service, call_center, "Передает заявку с сайта", "API")
+Rel(call_center_manager, call_center, "Работает с заявкой")
+Rel(call_center_manager, new_client, "Звонит и рассказывает условия")
+Rel(new_client, front_office, "Приходит в отделение для идентификации")
+Rel(front_office, abs, "Работает с данными клиента")
+
+Rel(client, internet_bank, "Выбирает депозит, счет и сумму", "HTTPS")
+Rel(internet_bank, deposit_service, "Получает ставки и создает заявку", "HTTPS/API")
+Rel(deposit_service, abs, "Передает заявку и получает статусы", "Интеграция")
+Rel(bo_deposit, abs, "Обрабатывает заявку, подтверждает ставку")
+Rel(bo_credit, abs, "Предоставляет данные для спецусловий")
+
+Rel(deposit_service, sms_gateway, "Запрашивает СМС-код и уведомления", "API")
+Rel(sms_gateway, telecom, "Передает СМС", "Интеграция")
+Rel(telecom, client, "Доставляет СМС")
+Rel(telecom, new_client, "Доставляет СМС")
+
+SHOW_LEGEND()
+@enduml
